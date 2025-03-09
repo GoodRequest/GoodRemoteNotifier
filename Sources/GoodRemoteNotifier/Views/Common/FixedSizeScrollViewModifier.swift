@@ -1,0 +1,40 @@
+//
+//  FixedSizeScrollView.swift
+//  GoodRemoteNotifier
+//
+//  Created by Marek Vríčan on 17/04/2025.
+//
+
+import SwiftUI
+
+/// A view modifier that adds a fixed-size scroll view to content, scrolling along the specified axis when needed.
+///
+/// - Parameters:
+///   - axis: The scroll direction. Can be `.horizontal`, `.vertical`, or `.both`. Default is `.vertical`.
+/// - Returns: A view that may scroll if content doesn't fit within available space.
+struct FixedSizeScrollViewModifier: ViewModifier {
+
+    let axis: Axis.Set
+
+    func body(content: Content) -> some View {
+        ViewThatFits(in: axis) {
+            content
+            ScrollView(axis) {
+                content
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+extension View {
+
+    /// Applies the `FixedSizeScrollViewModifier`, enabling scrolling on content.
+    ///
+    /// - Parameter axis: The scroll direction. Default is `.vertical`.
+    /// - Returns: A view with scroll behavior applied.
+    func fixedSizeScroll(_ axis: Axis.Set = .vertical) -> some View {
+        modifier(FixedSizeScrollViewModifier(axis: axis))
+    }
+    
+}
