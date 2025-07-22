@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "GoodRemoteNotifier",
     platforms: [
-        .iOS(.v16),
+        .iOS(.v13),
         .macOS(.v13)
     ],
     products: [

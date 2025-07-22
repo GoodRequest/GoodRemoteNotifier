@@ -36,6 +36,9 @@ internal final class MessageManager {
 
             case .monthly:
                 return !Calendar.current.isDate(lastShownDate, equalTo: now, toGranularity: .month)
+
+            case .always:
+                return true
             }
         }
 

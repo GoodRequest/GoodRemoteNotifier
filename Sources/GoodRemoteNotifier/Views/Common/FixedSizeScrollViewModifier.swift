@@ -17,12 +17,18 @@ struct FixedSizeScrollViewModifier: ViewModifier {
     let axis: Axis.Set
 
     func body(content: Content) -> some View {
-        ViewThatFits(in: axis) {
-            content
-            ScrollView(axis) {
+        if #available(iOS 16.0, *) {
+            ViewThatFits(in: axis) {
+                content
+                ScrollView(axis) {
+                    content
+                }
+                .scrollIndicators(.hidden)
+            }
+        } else {
+            ScrollView {
                 content
             }
-            .scrollIndicators(.hidden)
         }
     }
 }

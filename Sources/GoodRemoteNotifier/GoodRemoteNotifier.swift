@@ -30,8 +30,8 @@ public final class GoodRemoteNotifier: @unchecked Sendable {
     private let appId: String
     /// The topic key used for fetching remote values
     private let keyTopic: String
-    /// Closure to determine the selected language
-    private let selectedLanguage: @Sendable () -> String
+
+    private let decoding: RemoteMessage.Type
     /// Appearance configuration for remote messages
     private let appearance: RemoteMessageAppearance
     /// Closure to determine if the app is running in debug mode
@@ -41,19 +41,19 @@ public final class GoodRemoteNotifier: @unchecked Sendable {
     /// - Parameters:
     ///   - appId: The App Store ID of the app for redirection.
     ///   - topic: The topic key for fetching remote messages.
-    ///   - selectedLanguage: A closure returning the user's selected language.
+    ///   - decoding: The type implementing RemoteMessage protocol that will be used to decode the remote configuration.
     ///   - appearance: Configuration for how remote messages should be displayed.
     ///   - isDebugSession: A closure that returns `true` if in debug mode, default is `false`.
     public init(
         appId: String,
         topic: String,
-        selectedLanguage: @escaping @Sendable () -> String,
+        decoding: RemoteMessage.Type,
         appearance: RemoteMessageAppearance,
         isDebugSession: @escaping @Sendable () -> Bool = { false }
     ) {
         self.appId = appId
         self.keyTopic = topic
-        self.selectedLanguage = selectedLanguage
+        self.decoding = decoding
         self.appearance = appearance
         self.isDebugSession = isDebugSession
 
@@ -97,7 +97,7 @@ private extension GoodRemoteNotifier {
             .notifications(named: UIApplication.willEnterForegroundNotification)
 
         for await _ in willEnterForegroundNotifications {
-            try? await Task.sleep(for: .seconds(0.3))
+            try? await Task.sleep(nanoseconds: 300_000_000)
             await fetchRemoteValues()
         }
     }
@@ -126,9 +126,7 @@ private extension GoodRemoteNotifier {
                 continuation.yield(update.updatedKeys)
             }
 
-            continuation.onTermination = { reason in
-                print("\(reason)")
-            }
+            continuation.onTermination = { print("\($0)") }
         }
     }
 
@@ -139,7 +137,9 @@ private extension GoodRemoteNotifier {
         }
         let isDebugSession = isDebugSession()
         do {
-            if let localizedMessage = try decoder.decode(RemoteMessage.self, from: data).localizedMessage(languageCode: selectedLanguage()),
+            let response = try decoder.decode(decoding.self, from: data)
+
+            if let localizedMessage = await response.localizedMessage(),
                isDebugSession ? true : messageManager.shouldShowMessage(localizedMessage) {
                 if !isDebugSession {
                     messageManager.markMessageAsShown(localizedMessage)

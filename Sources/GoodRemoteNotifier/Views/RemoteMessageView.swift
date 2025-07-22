@@ -128,7 +128,7 @@ private extension RemoteMessageView {
                     isMessageVisible = false
 
                 }
-                try? await Task.sleep(for: .seconds(0.4))
+                try? await Task.sleep(nanoseconds: 400_000_000)
 
                 WindowManager.shared.closeNewWindow()
             }

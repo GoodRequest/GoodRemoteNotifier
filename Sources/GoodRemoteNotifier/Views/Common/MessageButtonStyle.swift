@@ -13,7 +13,7 @@ internal struct MessageButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .bold()
+            .font(appearance.font)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .center)
             .foregroundStyle(appearance.foregroundColor)
