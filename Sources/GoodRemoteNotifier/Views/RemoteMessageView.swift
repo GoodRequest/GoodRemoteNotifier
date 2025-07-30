@@ -29,8 +29,8 @@ internal struct RemoteMessageView: View {
 
     var body: some View {
         Color.clear
-            .ignoresSafeArea()
-            .overlay(alignment: .center) {
+            .applySafeAreaIgnoring()
+            .alignedOverlay(alignment: .center) {
                 VStack(spacing: 16) {
                     appIcon()
                     remoteMessage
@@ -44,7 +44,7 @@ internal struct RemoteMessageView: View {
                 .scaleEffect(isMessageVisible ? 1 : 0.7)
                 .opacity(isMessageVisible ? 1 : 0)
                 .onAppear {
-                    withAnimation(.bouncy(duration: 0.4).delay(0.3)) {
+                    withAnimation(.bouncy(duration: 0.3).delay(0.3)) {
                         isMessageVisible.toggle()
                     }
                 }
@@ -74,11 +74,11 @@ private extension RemoteMessageView {
         VStack(spacing: 16) {
             Group {
                 Text(localizedMessage.title)
-                    .foregroundStyle(appearance.titleColor)
+                    .styledForeground(appearance.titleColor)
                     .font(appearance.titleFont)
 
                 Text(localizedMessage.message)
-                    .foregroundStyle(appearance.messageColor)
+                    .styledForeground(appearance.messageColor)
                     .font(appearance.messageFont)
                     .fixedSizeScroll()
             }
@@ -126,7 +126,6 @@ private extension RemoteMessageView {
             Task {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isMessageVisible = false
-
                 }
                 try? await Task.sleep(nanoseconds: 400_000_000)
 

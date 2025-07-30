@@ -45,7 +45,7 @@ public struct RemoteMessageAppearance: Sendable {
     }
 
     public static let `default`: RemoteMessageAppearance = RemoteMessageAppearance(
-        titleFont: .title3.bold(),
+        titleFont: Font.system(size: 20, weight: .bold),
         titleColor: .black,
         messageFont: .footnote,
         messageColor: .black.opacity(0.8),

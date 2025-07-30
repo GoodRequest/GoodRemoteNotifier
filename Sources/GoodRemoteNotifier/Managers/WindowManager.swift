@@ -7,6 +7,13 @@
 
 import SwiftUI
 
+public enum PresentingEffect {
+
+    case blur(style: UIBlurEffect.Style = .dark)
+    case dim(opacity: CGFloat = 0.8)
+
+}
+
 /// A singleton class responsible for managing the presentation of a new window overlay.
 @MainActor
 internal final class WindowManager {
@@ -22,10 +29,12 @@ internal final class WindowManager {
 
     /// Displays a new window and presents the given overlay view controller.
     /// - Parameter overlayController: The `UIViewController` to be presented in the new window.
-    internal func showNewWindow(presenting overlayController: UIViewController) {
+    internal func showNewWindow(
+        presenting overlayController: UIViewController,
+        effect: PresentingEffect
+    ) {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              newWindow == nil
-        else { return }
+              newWindow == nil else { return }
 
         let parentInterfaceStyle = scene.windows
             .first { $0.isKeyWindow }?
@@ -41,7 +50,7 @@ internal final class WindowManager {
         window.windowLevel = .alert + 1
         window.makeKeyAndVisible()
 
-        presentingController.addBlurEffect() {
+        presentingController.addBackgroundEffect(effect) {
             overlayController.modalPresentationStyle = .overFullScreen
             presentingController.present(overlayController, animated: false)
         }

@@ -16,8 +16,8 @@ internal struct MessageButtonStyle: ButtonStyle {
             .font(appearance.font)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .center)
-            .foregroundStyle(appearance.foregroundColor)
-            .background { appearance.backgroundColor }
+            .styledForeground(appearance.foregroundColor)
+            .background(appearance.backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: appearance.cornerRadius))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.snappy, value: configuration.isPressed)

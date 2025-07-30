@@ -9,33 +9,47 @@ import UIKit
 
 internal extension UIViewController {
 
-    /// Adds a blur effect to the view with an animation.
-    /// - Parameters:
-    ///   - duration: The duration of the blur effect animation. Default is `0.2` seconds.
-    ///   - completion: An optional closure that is called after the animation completes.
-    func addBlurEffect(duration: TimeInterval = 0.2, completion: (() -> Void)? = nil) {
-        let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialDark))
-        blurView.layer.opacity = 0
-        blurView.frame = view.bounds
-        blurView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(blurView)
+    func addBackgroundEffect(_ effect: PresentingEffect, completion: @escaping () -> Void) {
+        let backgroundView: UIView
 
-        UIView.animate(withDuration: duration) {
-            blurView.layer.opacity = 1
-        } completion: { _ in completion?() }
+        switch effect {
+        case .blur(let style):
+            let blur = UIBlurEffect(style: style)
+            backgroundView = UIVisualEffectView(effect: blur)
+
+        case .dim(let opacity):
+            let dimView = UIView()
+            dimView.backgroundColor = UIColor.black.withAlphaComponent(opacity)
+            backgroundView = dimView
+        }
+
+        backgroundView.frame = view.bounds
+        backgroundView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        backgroundView.alpha = 0
+        view.addSubview(backgroundView)
+
+        UIView.animate(withDuration: 0.2, animations: {
+            backgroundView.alpha = 1
+        }, completion: { _ in
+            completion()
+        })
     }
 
-
-    /// Removes the blur effect from the view with an animation.
-    /// - Parameters:
-    ///   - duration: The duration of the blur effect removal animation. Default is `0.2` seconds.
-    ///   - completion: An optional closure that is called after the animation completes.
-    func removeBlurEffect(duration: TimeInterval = 0.2, completion: (() -> Void)? = nil) {
-        guard let blurView = view.subviews.first(where: { $0 is UIVisualEffectView }) else { return }
-
-        UIView.animate(withDuration: duration) {
-            blurView.layer.opacity = 0
-        } completion: { _ in completion?() }
+    func removeBlurEffect(completion: @escaping () -> Void) {
+        UIView.animate(withDuration: 0.2, animations: {
+            self.view.subviews.forEach {
+                if $0 is UIVisualEffectView || $0.backgroundColor?.cgColor.alpha ?? 0 > 0 {
+                    $0.alpha = 0
+                }
+            }
+        }, completion: { _ in
+            self.view.subviews.forEach {
+                if $0 is UIVisualEffectView || $0.backgroundColor?.cgColor.alpha ?? 0 > 0 {
+                    $0.removeFromSuperview()
+                }
+            }
+            completion()
+        })
     }
 
 }

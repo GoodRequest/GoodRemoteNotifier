@@ -13,7 +13,7 @@ public protocol RemoteMessage: Codable {
 
 }
 
-extension RemoteMessage {
+public extension RemoteMessage {
 
     func shouldShowMessage() async -> Bool { true }
     

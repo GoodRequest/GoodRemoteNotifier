@@ -1,6 +1,6 @@
-# GoodRemoteNotifier
+# RemoteConfigNotifier
 
-`GoodRemoteNotifier` is a Swift package designed to fetch and display remote notifications based on a JSON template. It allows you to integrate messages, titles, and buttons for different languages, all fetched from Firebase Remote Config.
+`RemoteConfigNotifier` is a Swift package designed to fetch and display remote notifications based on a JSON template. It allows you to integrate messages, titles, and buttons for different languages, all fetched from Firebase Remote Config.
 
 This package is useful for applications that need to display localized messages and UI elements like update notifications, with multiple language capabilities and appearance customization.
 
@@ -61,25 +61,26 @@ The remote configuration is fetched from Firebase Remote Config in JSON format. 
 ## Usage
 
 Make sure that you have imported the `GoogleService-Info.plist` file into your project. 
-Additionally, ensure that `Firebase.configure()` is called before initializing the GoodRemote notifier.
+Additionally, ensure that `Firebase.configure()` is called before initializing the RemoteConfigNotifier.
 
 Initialize the notifier in `AppDelegate` or in the `@main` App struct for SwiftUI. It will automatically listen for the selected topic and display notifications based on the chosen frequency.
 
 ```Swift
 import GoodRemoteNotifier
 
-let notifier = GoodRemoteNotifier(
+let notifier = RemoteConfigNotifier(
     appId: "123456789", // The App Store ID of the app for redirection.
     topic: "update", // Firebase remote config parameter key
     decoding: YourRemoteMessageType.self, // Your implementation of RemoteMessage protocol
     appearance: RemoteMessageAppearance.default, // Configuration for how remote messages should be displayed.
+    presentingEffect: .blur(), // Visual effect for the background (options: .blur() or .dim())
     isDebugSession: { false } // If true, disables caching and sets the minimum fetching interval to 0.
 )
 ```
 
 ### Implementing the RemoteMessage Protocol
 
-To use GoodRemoteNotifier, you need to implement the `RemoteMessage` protocol for your custom message type:
+To use RemoteConfigNotifier, you need to implement the `RemoteMessage` protocol for your custom message type:
 
 ```Swift
 struct YourRemoteMessageType: RemoteMessage {
