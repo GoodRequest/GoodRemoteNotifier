@@ -8,7 +8,7 @@ import SwiftUI
 
 /// A class responsible for handling remote notifications using Firebase Remote Config.
 /// It listens for updates and displays messages accordingly.
-public final class GoodRemoteNotifier: @unchecked Sendable {
+public final class RemoteConfigNotifier: @unchecked Sendable {
 
     /// Firebase Remote Config instance
     private let remoteConfig = RemoteConfig.remoteConfig()
@@ -30,8 +30,10 @@ public final class GoodRemoteNotifier: @unchecked Sendable {
     private let appId: String
     /// The topic key used for fetching remote values
     private let keyTopic: String
-    /// Closure to determine the selected language
-    private let selectedLanguage: @Sendable () -> String
+    /// The type conforming to `RemoteMessage` protocol used for decoding remote JSON payloads.
+    private let decoding: RemoteMessage.Type
+    /// The presentation effect to use when displaying remote messages.
+    private let presentingEffect: PresentingEffect
     /// Appearance configuration for remote messages
     private let appearance: RemoteMessageAppearance
     /// Closure to determine if the app is running in debug mode
@@ -41,20 +43,23 @@ public final class GoodRemoteNotifier: @unchecked Sendable {
     /// - Parameters:
     ///   - appId: The App Store ID of the app for redirection.
     ///   - topic: The topic key for fetching remote messages.
-    ///   - selectedLanguage: A closure returning the user's selected language.
+    ///   - decoding: The type implementing RemoteMessage protocol that will be used to decode the remote configuration.
     ///   - appearance: Configuration for how remote messages should be displayed.
+    ///   - presentingEffect: Determines how the background of the overlay view will appear.
     ///   - isDebugSession: A closure that returns `true` if in debug mode, default is `false`.
     public init(
         appId: String,
         topic: String,
-        selectedLanguage: @escaping @Sendable () -> String,
+        decoding: RemoteMessage.Type,
         appearance: RemoteMessageAppearance,
+        presentingEffect: PresentingEffect = .blur(),
         isDebugSession: @escaping @Sendable () -> Bool = { false }
     ) {
         self.appId = appId
         self.keyTopic = topic
-        self.selectedLanguage = selectedLanguage
+        self.decoding = decoding
         self.appearance = appearance
+        self.presentingEffect = presentingEffect
         self.isDebugSession = isDebugSession
 
         setupConfig()
@@ -63,7 +68,7 @@ public final class GoodRemoteNotifier: @unchecked Sendable {
 
 }
 
-private extension GoodRemoteNotifier {
+private extension RemoteConfigNotifier {
 
     /// Starts listening for multiple app events: foreground entry, app updates, and app start.
     func startListeningOnEvents() {
@@ -82,23 +87,17 @@ private extension GoodRemoteNotifier {
 
     /// Listens for the `UIApplication.didFinishLaunchingNotification` and calls `fetchRemoteValues` when the app finishes launching.
     func startListeningOnAppStart() async {
-        let didFinishLaunchingNotification = NotificationCenter.default
-            .notifications(named: UIApplication.didFinishLaunchingNotification)
-
-        for await _ in didFinishLaunchingNotification {
-            await fetchRemoteValues()
+        observeNotification(named: UIApplication.didFinishLaunchingNotification) { [weak self] in
+            await self?.fetchRemoteValues()
         }
     }
 
     /// Starts listening for app foreground entry events.
     /// Fetches remote values when the app becomes active.
     func startListeningOnForegroundEntry() async {
-        let willEnterForegroundNotifications = NotificationCenter.default
-            .notifications(named: UIApplication.willEnterForegroundNotification)
-
-        for await _ in willEnterForegroundNotifications {
-            try? await Task.sleep(for: .seconds(0.3))
-            await fetchRemoteValues()
+        observeNotification(named: UIApplication.willEnterForegroundNotification) { [weak self] in
+//            try? await Task.sleep(nanoseconds: 50_000_000)
+            await self?.fetchRemoteValues()
         }
     }
 
@@ -126,9 +125,7 @@ private extension GoodRemoteNotifier {
                 continuation.yield(update.updatedKeys)
             }
 
-            continuation.onTermination = { reason in
-                print("\(reason)")
-            }
+            continuation.onTermination = { print("\($0)") }
         }
     }
 
@@ -139,7 +136,9 @@ private extension GoodRemoteNotifier {
         }
         let isDebugSession = isDebugSession()
         do {
-            if let localizedMessage = try decoder.decode(RemoteMessage.self, from: data).localizedMessage(languageCode: selectedLanguage()),
+            let response = try decoder.decode(decoding.self, from: data)
+
+            if let localizedMessage = await response.localizedMessage(), await response.shouldShowMessage(),
                isDebugSession ? true : messageManager.shouldShowMessage(localizedMessage) {
                 if !isDebugSession {
                     messageManager.markMessageAsShown(localizedMessage)
@@ -154,7 +153,7 @@ private extension GoodRemoteNotifier {
                     )
                     controller.view.backgroundColor = .clear
 
-                    WindowManager.shared.showNewWindow(presenting: controller)
+                    WindowManager.shared.showNewWindow(presenting: controller, effect: presentingEffect)
                 }
             }
         } catch {
@@ -185,6 +184,29 @@ private extension GoodRemoteNotifier {
     /// - Parameter message: The message to log.
     func logMessage(_ message: String) {
         //logger.log(message: "RemoteNotifier: \(message)", level: .debug, privacy: .auto)
+    }
+
+    func observeNotification(
+        named name: Notification.Name,
+        perform action: @escaping @Sendable () async -> Void
+    ) {
+        if #available(iOS 15, *) {
+            Task {
+                for await _ in NotificationCenter.default.notifications(named: name) {
+                    await action()
+                }
+            }
+        } else {
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { _ in
+                Task {
+                    await action()
+                }
+            }
+        }
     }
 
 }
