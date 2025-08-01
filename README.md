@@ -1,6 +1,6 @@
-# RemoteConfigNotifier
+# GoodRemoteNotifier
 
-`RemoteConfigNotifier` is a Swift package designed to fetch and display remote notifications based on a JSON template. It allows you to integrate messages, titles, and buttons for different languages, all fetched from Firebase Remote Config.
+`GoodRemoteNotifier` is a Swift package designed to fetch and display remote notifications based on a JSON template. It allows you to integrate messages, titles, and buttons for different languages, all fetched from Firebase Remote Config.
 
 This package is useful for applications that need to display localized messages and UI elements like update notifications, with multiple language capabilities and appearance customization.
 
