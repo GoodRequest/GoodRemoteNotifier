@@ -21,4 +21,9 @@ internal extension Bundle {
         return iconFileName
     }
 
+    func fileURL(withName name: String, extension fileExtension: String) -> URL? {
+        self.urls(forResourcesWithExtension: fileExtension, subdirectory: nil)?
+            .first(where: { $0.lastPathComponent == "\(name).\(fileExtension)" })
+    }
+
 }

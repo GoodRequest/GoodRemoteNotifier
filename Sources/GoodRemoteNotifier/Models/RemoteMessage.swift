@@ -5,7 +5,7 @@
 //  Created by Marek Vríčan on 17/04/2025.
 //
 
-public protocol RemoteMessage: Codable {
+public protocol RemoteMessage: Codable & Sendable {
 
     func localizedMessage() async -> LocalizedRemoteMessage?
 

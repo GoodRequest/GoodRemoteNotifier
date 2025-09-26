@@ -93,7 +93,7 @@ private extension RemoteMessageView {
             if let updateButtonTitle = localizedMessage.updateButton {
                 Button(updateButtonTitle) {
                     openAppInAppStore()
-                    if localizedMessage.closeButton != nil {
+                    if localizedMessage.closeButton != nil || localizedMessage.frequency != .always {
                         close()
                     }
                 }

@@ -5,7 +5,7 @@
 //  Created by Marek Vríčan on 17/04/2025.
 //
 
-public struct LocalizedRemoteMessage: Codable {
+public struct LocalizedRemoteMessage: Codable & Sendable {
 
     let id, title, message: String
     let updateButton, closeButton: String?
