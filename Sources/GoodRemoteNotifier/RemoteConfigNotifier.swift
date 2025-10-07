@@ -1,31 +1,29 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
-import Firebase
-import FirebaseRemoteConfig
-import GoodLogger
 import SwiftUI
 
-/// A class responsible for handling remote notifications using Firebase Remote Config.
-/// It listens for updates and displays messages accordingly.
-public final class RemoteConfigNotifier: @unchecked Sendable {
+// MARK: - RemoteConfigNotifier Declaration
+public actor RemoteConfigNotifier {
+
+    // MARK: Enums
+
+    public enum MessageTrigger: Sendable & CaseIterable {
+        case appStart
+        case appForegroundEntry
+        case networkReached
+    }
+
+    // MARK: Properties
 
     /// Firebase Remote Config instance
-    private let remoteConfig = RemoteConfig.remoteConfig()
+    private let remoteClient: RemoteConfigClient
+    /// Monitors the network reachability to trigger remote config fetches on connection changes
+    private let reachabilityMonitor = NetworkReachabilityManager()
     /// Manages displaying remote messages
     private let messageManager = MessageManager()
     /// JSON decoder for parsing remote messages
     private let decoder = JSONDecoder()
-
-    /// Logger instance used for debugging and error reporting
-    private var logger: GoodLogger {
-        if #available(iOS 14, *) {
-            return OSLogLogger()
-        } else {
-            return PrintLogger()
-        }
-    }
-
     /// The App Store ID of the app, used for opening the app in the App Store.
     private let appId: String
     /// The topic key used for fetching remote values
@@ -35,155 +33,170 @@ public final class RemoteConfigNotifier: @unchecked Sendable {
     /// The presentation effect to use when displaying remote messages.
     private let presentingEffect: PresentingEffect
     /// Appearance configuration for remote messages
-    private let appearance: RemoteMessageAppearance
+    private var appearance: RemoteMessageAppearance
     /// Closure to determine if the app is running in debug mode
     private let isDebugSession: @Sendable () -> Bool
+    /// The set of events that will trigger remote config checks
+    private let messageTriggers: Set<MessageTrigger>
+
+    private var mocked: RemoteMessage? = nil
+
+    // MARK: Initializers
 
     /// Initializes a `GoodRemoteNotifier` instance.
     /// - Parameters:
     ///   - appId: The App Store ID of the app for redirection.
     ///   - topic: The topic key for fetching remote messages.
-    ///   - decoding: The type implementing RemoteMessage protocol that will be used to decode the remote configuration.
+    ///   - remoteConfiguration: The configuration object for initializing the remote config client.
+    ///   - decoding: The type implementing the `RemoteMessage` protocol that will be used to decode the remote configuration.
     ///   - appearance: Configuration for how remote messages should be displayed.
-    ///   - presentingEffect: Determines how the background of the overlay view will appear.
+    ///   - eventListeners: The set of event listeners that trigger remote config checks. Defaults to all cases.
+    ///   - presentingEffect: Determines how the background of the overlay view will appear. Default is `.blur()`.
     ///   - isDebugSession: A closure that returns `true` if in debug mode, default is `false`.
     public init(
         appId: String,
         topic: String,
+        remoteConfiguration: RemoteConfigClient.Configuration?,
         decoding: RemoteMessage.Type,
         appearance: RemoteMessageAppearance,
+        messageTriggers: Set<MessageTrigger> = Set(MessageTrigger.allCases),
         presentingEffect: PresentingEffect = .blur(),
         isDebugSession: @escaping @Sendable () -> Bool = { false }
-    ) {
+    ) throws {
+        self.remoteClient = try .init(configuration: remoteConfiguration)
+
         self.appId = appId
         self.keyTopic = topic
         self.decoding = decoding
         self.appearance = appearance
+        self.messageTriggers = messageTriggers
         self.presentingEffect = presentingEffect
         self.isDebugSession = isDebugSession
 
-        setupConfig()
-        startListeningOnEvents()
+        Task { await startListeningOnEvents() }
+    }
+
+    fileprivate init<T: RemoteMessage>(
+        mocked: T,
+        appId: String,
+        appearance: RemoteMessageAppearance,
+        effect: PresentingEffect,
+        messageTriggers: Set<MessageTrigger>,
+    ) throws {
+        self.remoteClient = try .init(configuration: .init(serviceInfo: .mock))
+
+        self.appId = appId
+        self.keyTopic = "mocked"
+        self.decoding = T.self
+        self.appearance = appearance
+        self.messageTriggers = messageTriggers
+        self.presentingEffect = effect
+        self.isDebugSession = { false }
+        self.mocked = mocked
+
+        Task { await startListeningOnEvents() }
+    }
+
+    public static func mocked<T: RemoteMessage>(
+        _ mocked: T,
+        appId: String = "",
+        appearance: RemoteMessageAppearance = .default,
+        effect: PresentingEffect = .blur(style: .systemThickMaterialDark),
+        messageTriggers: Set<MessageTrigger> = Set(MessageTrigger.allCases)
+    ) throws -> RemoteConfigNotifier? {
+        try RemoteConfigNotifier(mocked: mocked, appId: appId, appearance: appearance, effect: effect, messageTriggers: messageTriggers)
     }
 
 }
 
+// MARK: Event Listening
+
 private extension RemoteConfigNotifier {
 
-    /// Starts listening for multiple app events: foreground entry, app updates, and app start.
     func startListeningOnEvents() {
-        Task { await startListeningOnForegroundEntry() }
-        Task { await startListeningOnUpdate() }
-        Task { await startListeningOnAppStart() }
+        for trigger in messageTriggers {
+            switch trigger {
+            case .appStart: Task { await startListeningOnAppStart() }
+            case .appForegroundEntry: Task { await startListeningOnForegroundEntry() }
+            case .networkReached: Task { await listenOnNetworkReached() }
+            }
+        }
     }
 
-    /// Configures Firebase Remote Config settings.
-    /// Adjusts the fetch interval based on debug mode.
-    func setupConfig() {
-        let settings = RemoteConfigSettings()
-        settings.minimumFetchInterval = isDebugSession() ? 0 : 43200
-        remoteConfig.configSettings = settings
-    }
-
-    /// Listens for the `UIApplication.didFinishLaunchingNotification` and calls `fetchRemoteValues` when the app finishes launching.
     func startListeningOnAppStart() async {
-        observeNotification(named: UIApplication.didFinishLaunchingNotification) { [weak self] in
-            await self?.fetchRemoteValues()
+        observeNotification(named: UIApplication.didFinishLaunchingNotification) {
+            await self.fetchRemoteValues()
         }
     }
 
-    /// Starts listening for app foreground entry events.
-    /// Fetches remote values when the app becomes active.
-    func startListeningOnForegroundEntry() async {
-        observeNotification(named: UIApplication.willEnterForegroundNotification) { [weak self] in
-//            try? await Task.sleep(nanoseconds: 50_000_000)
-            await self?.fetchRemoteValues()
-        }
-    }
-
-    /// Starts listening for updates to remote config values.
-    func startListeningOnUpdate() async {
-        for await updatedKeys in updatedKeys() {
-            guard updatedKeys.contains(keyTopic) else { return }
-
+    func listenOnNetworkReached() async {
+        for await _ in await reachabilityMonitor.reachabilityStream() {
             await fetchRemoteValues()
         }
     }
 
-    /// Creates an async stream that listens for remote config updates.
-    /// - Returns: An `AsyncStream` of updated config keys.
-    func updatedKeys() -> AsyncStream<Set<String>> {
-        AsyncStream<Set<String>> { continuation in
-            remoteConfig.addOnConfigUpdateListener { update, error in
-                guard let update, error == nil else {
-                    if let error {
-                        self.logMessage("❌ \(error.localizedDescription)")
-                    }
-                    return
-                }
-
-                continuation.yield(update.updatedKeys)
-            }
-
-            continuation.onTermination = { print("\($0)") }
+    func startListeningOnForegroundEntry() async {
+        observeNotification(named: UIApplication.willEnterForegroundNotification) {
+            await self.fetchRemoteValues()
         }
     }
 
-    /// Decodes and displays the remote message if applicable.
-    func decodeRemote() async {
-        guard let data = remoteConfig.configValue(forKey: keyTopic).stringValue.data(using: .utf8) else {
-            return
-        }
-        let isDebugSession = isDebugSession()
-        do {
-            let response = try decoder.decode(decoding.self, from: data)
+}
 
-            if let localizedMessage = await response.localizedMessage(), await response.shouldShowMessage(),
-               isDebugSession ? true : messageManager.shouldShowMessage(localizedMessage) {
-                if !isDebugSession {
-                    messageManager.markMessageAsShown(localizedMessage)
-                }
+// MARK: Remote Fetch & Decode
 
-                Task { @MainActor in
-                    let controller = UIHostingController(
-                        rootView: RemoteMessageView(
-                            localizedMessage: localizedMessage,
-                            appId: appId,
-                            appearance: appearance)
-                    )
-                    controller.view.backgroundColor = .clear
-
-                    WindowManager.shared.showNewWindow(presenting: controller, effect: presentingEffect)
-                }
-            }
-        } catch {
-            logMessage("❌ an error during decoding: \(error.localizedDescription)")
-        }
-    }
+private extension RemoteConfigNotifier {
 
     /// Fetches remote values from Firebase Remote Config.
     func fetchRemoteValues() async {
-        do {
-            switch try await remoteConfig.fetchAndActivate() {
-            case .successFetchedFromRemote, .successUsingPreFetchedData:
+        if let mocked {
+            await present(response: mocked)
+        } else {
+            do {
+                let fetchedData = try await remoteClient.fetchRemoteConfig(for: keyTopic)
                 logMessage("✅ Successfully fetched remote values.")
-                await decodeRemote()
-
-            case .error:
-                logMessage("❌ Failed to fetch remote values.")
-
-            default:
-                logMessage("⚠️ Unexpected remote config state.")
+                await present(response: try decoder.decode(decoding.self, from: fetchedData))
+            } catch {
+                logMessage("❌ \(error.localizedDescription)")
             }
-        } catch {
-            logMessage("❌ \(error.localizedDescription)")
         }
     }
+
+    func present<T: RemoteMessage>(response: T) async {
+        let isDebugSession = isDebugSession()
+
+        if let localizedMessage = await response.localizedMessage(), await response.shouldShowMessage(),
+           isDebugSession ? true : messageManager.shouldShowMessage(localizedMessage) {
+            if !isDebugSession {
+                messageManager.markMessageAsShown(localizedMessage)
+            }
+
+            Task { @MainActor in
+                let currentAppearance = await appearance
+                let controller = UIHostingController(
+                    rootView: RemoteMessageView(
+                        localizedMessage: localizedMessage,
+                        appId: appId,
+                        appearance: currentAppearance
+                    )
+                )
+                controller.view.backgroundColor = .clear
+
+                WindowManager.shared.showNewWindow(presenting: controller, effect: presentingEffect)
+            }
+        }
+    }
+
+}
+
+// MARK: - Helpers
+
+private extension RemoteConfigNotifier {
 
     /// Logs a message using the configured logger.
     /// - Parameter message: The message to log.
     func logMessage(_ message: String) {
-        //logger.log(message: "RemoteNotifier: \(message)", level: .debug, privacy: .auto)
+        print(message)
     }
 
     func observeNotification(
@@ -210,3 +223,14 @@ private extension RemoteConfigNotifier {
     }
 
 }
+
+// MARK: - Dynamic Appearance setup
+
+extension RemoteConfigNotifier {
+
+    public func updateAppearance(_ appearance: RemoteMessageAppearance) {
+        self.appearance = appearance
+    }
+
+}
+

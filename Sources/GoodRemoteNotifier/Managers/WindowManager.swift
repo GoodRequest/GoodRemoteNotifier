@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-public enum PresentingEffect {
+public enum PresentingEffect: Sendable {
 
     case blur(style: UIBlurEffect.Style = .dark)
     case dim(opacity: CGFloat = 0.8)

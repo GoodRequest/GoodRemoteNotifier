@@ -14,21 +14,12 @@ let package = Package(
             targets: ["GoodRemoteNotifier"]
         )
     ],
-    dependencies: [
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", .upToNextMajor(from: "11.9.0")),
-        .package(url: "https://github.com/GoodRequest/GoodLogger.git", .upToNextMajor(from: "1.2.3"))
-    ],
     targets: [
         .target(
             name: "GoodRemoteNotifier",
-            dependencies: [
-                .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
-                .product(name: "FirebaseRemoteConfig", package: "firebase-ios-sdk"),
-                .product(name: "GoodLogger", package: "GoodLogger")
-            ],
+            dependencies: [],
             path: "./Sources/GoodRemoteNotifier",
             swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-
+        )
     ]
 )
