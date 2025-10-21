@@ -12,11 +12,11 @@ import SwiftUI
 /// - Parameters:
 ///   - axis: The scroll direction. Can be `.horizontal`, `.vertical`, or `.both`. Default is `.vertical`.
 /// - Returns: A view that may scroll if content doesn't fit within available space.
-struct FixedSizeScrollViewModifier: ViewModifier {
+public struct FixedSizeScrollViewModifier: ViewModifier {
 
     let axis: Axis.Set
 
-    func body(content: Content) -> some View {
+    public func body(content: Content) -> some View {
         if #available(iOS 16.0, *) {
             ViewThatFits(in: axis) {
                 content
@@ -39,7 +39,7 @@ extension View {
     ///
     /// - Parameter axis: The scroll direction. Default is `.vertical`.
     /// - Returns: A view with scroll behavior applied.
-    func fixedSizeScroll(_ axis: Axis.Set = .vertical) -> some View {
+    public func fixedSizeScroll(_ axis: Axis.Set = .vertical) -> some View {
         modifier(FixedSizeScrollViewModifier(axis: axis))
     }
     

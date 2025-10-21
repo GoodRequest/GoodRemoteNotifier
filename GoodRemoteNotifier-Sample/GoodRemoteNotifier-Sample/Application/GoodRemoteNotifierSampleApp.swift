@@ -16,8 +16,9 @@ struct GoodRemoteNotifierSampleApp: App {
         /// Just a mocked message, open **MockedRemoteMessage.swift** to find out more
         remoteConfigNotifier = try? RemoteConfigNotifier.mocked(
             MockedRemoteMessage.sample,
-            appearance: RemoteMessageTheme.dark.appearance,
-            messageTriggers: [.appForegroundEntry])
+            messageTriggers: [.appForegroundEntry, .appStart, .networkReached],
+            viewProvider: ViewProvider()
+        )
 
         /// To use remote config, please copy **GoogleService-Info.plist** to the project
 //        remoteConfigNotifier = try? RemoteConfigNotifier(

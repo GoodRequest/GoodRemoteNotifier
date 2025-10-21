@@ -7,13 +7,6 @@
 
 import SwiftUI
 
-public enum PresentingEffect: Sendable {
-
-    case blur(style: UIBlurEffect.Style = .dark)
-    case dim(opacity: CGFloat = 0.8)
-
-}
-
 /// A singleton class responsible for managing the presentation of a new window overlay.
 @MainActor
 internal final class WindowManager {
@@ -29,10 +22,7 @@ internal final class WindowManager {
 
     /// Displays a new window and presents the given overlay view controller.
     /// - Parameter overlayController: The `UIViewController` to be presented in the new window.
-    internal func showNewWindow(
-        presenting overlayController: UIViewController,
-        effect: PresentingEffect
-    ) {
+    internal func showNewWindow(presenting overlayController: UIViewController) {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               newWindow == nil else { return }
 
@@ -43,34 +33,28 @@ internal final class WindowManager {
 
         let window = UIWindow(windowScene: scene)
         let presentingController = createPresentingController()
-        presentingController.view.backgroundColor = .clear
 
         window.overrideUserInterfaceStyle = parentInterfaceStyle
         window.rootViewController = presentingController
         window.windowLevel = .alert + 1
         window.makeKeyAndVisible()
 
-        presentingController.addBackgroundEffect(effect) {
-            overlayController.modalPresentationStyle = .overFullScreen
-            presentingController.present(overlayController, animated: false)
-        }
+        overlayController.modalPresentationStyle = .overFullScreen
+        presentingController.present(overlayController, animated: false)
 
         self.newWindow = window
     }
 
     /// Closes the currently displayed window by removing its blur effect and hiding it.
     internal func closeNewWindow() {
-        newWindow?.rootViewController?.removeBlurEffect() {
-            self.newWindow?.isHidden = true
-            self.newWindow = nil
-        }
+        self.newWindow?.isHidden = true
+        self.newWindow = nil
     }
 
     /// Creates a transparent `UIViewController` to act as the presenting controller for the new window.
     /// - Returns: A new `UIViewController` with a clear background.
     private func createPresentingController() -> UIViewController {
         let controller = UIViewController()
-        controller.view.backgroundColor = .clear
         return controller
     }
 

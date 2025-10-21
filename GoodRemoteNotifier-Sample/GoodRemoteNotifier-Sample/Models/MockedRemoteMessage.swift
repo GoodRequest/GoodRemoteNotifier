@@ -44,10 +44,13 @@ struct MockedRemoteMessage: RemoteMessage, Codable, Sendable {
     let updateButton, closeButton: [String: String]
 
     func localizedMessage() async -> LocalizedRemoteMessage? {
-        let languageCode = Locale.preferredLanguages.first?
+        let availableLanguageCodes = title.keys
+        let localLanguageCode = Locale.preferredLanguages.first?
             .split(separator: "-")
             .first
             .map(String.init) ?? "en"
+
+        let languageCode = availableLanguageCodes.first { $0 == localLanguageCode } ?? "en"
 
         return LocalizedRemoteMessage(
             title: title[languageCode],

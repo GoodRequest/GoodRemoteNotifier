@@ -7,9 +7,9 @@
 
 public struct LocalizedRemoteMessage: Codable & Sendable {
 
-    let id, title, message: String
-    let updateButton, closeButton: String?
-    let frequency: MessageFrequency
+    public let id, title, message: String
+    public let updateButton, closeButton: String?
+    public let frequency: MessageFrequency
 
     public init?(
         title: String?,
