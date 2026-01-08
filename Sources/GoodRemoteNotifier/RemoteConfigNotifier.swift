@@ -4,6 +4,7 @@
 import SwiftUI
 
 // MARK: - RemoteConfigNotifier Declaration
+
 public actor RemoteConfigNotifier {
 
     // MARK: Enums
@@ -30,16 +31,14 @@ public actor RemoteConfigNotifier {
     private let keyTopic: String
     /// The type conforming to `RemoteMessage` protocol used for decoding remote JSON payloads.
     private let decoding: RemoteMessage.Type
-    /// The presentation effect to use when displaying remote messages.
-    private let presentingEffect: PresentingEffect
-    /// Appearance configuration for remote messages
-    private var appearance: RemoteMessageAppearance
     /// Closure to determine if the app is running in debug mode
     private let isDebugSession: @Sendable () -> Bool
     /// The set of events that will trigger remote config checks
     private let messageTriggers: Set<MessageTrigger>
 
     private var mocked: RemoteMessage? = nil
+
+    private let viewProvider: any RemoteMessageViewProvider
 
     // MARK: Initializers
 
@@ -49,7 +48,6 @@ public actor RemoteConfigNotifier {
     ///   - topic: The topic key for fetching remote messages.
     ///   - remoteConfiguration: The configuration object for initializing the remote config client.
     ///   - decoding: The type implementing the `RemoteMessage` protocol that will be used to decode the remote configuration.
-    ///   - appearance: Configuration for how remote messages should be displayed.
     ///   - eventListeners: The set of event listeners that trigger remote config checks. Defaults to all cases.
     ///   - presentingEffect: Determines how the background of the overlay view will appear. Default is `.blur()`.
     ///   - isDebugSession: A closure that returns `true` if in debug mode, default is `false`.
@@ -58,20 +56,18 @@ public actor RemoteConfigNotifier {
         topic: String,
         remoteConfiguration: RemoteConfigClient.Configuration?,
         decoding: RemoteMessage.Type,
-        appearance: RemoteMessageAppearance,
         messageTriggers: Set<MessageTrigger> = Set(MessageTrigger.allCases),
-        presentingEffect: PresentingEffect = .blur(),
-        isDebugSession: @escaping @Sendable () -> Bool = { false }
+        isDebugSession: @escaping @Sendable () -> Bool = { false },
+        viewProvider: any RemoteMessageViewProvider
     ) throws {
         self.remoteClient = try .init(configuration: remoteConfiguration)
 
         self.appId = appId
         self.keyTopic = topic
         self.decoding = decoding
-        self.appearance = appearance
         self.messageTriggers = messageTriggers
-        self.presentingEffect = presentingEffect
         self.isDebugSession = isDebugSession
+        self.viewProvider = viewProvider
 
         Task { await startListeningOnEvents() }
     }
@@ -79,20 +75,18 @@ public actor RemoteConfigNotifier {
     fileprivate init<T: RemoteMessage>(
         mocked: T,
         appId: String,
-        appearance: RemoteMessageAppearance,
-        effect: PresentingEffect,
         messageTriggers: Set<MessageTrigger>,
+        viewProvider: any RemoteMessageViewProvider
     ) throws {
         self.remoteClient = try .init(configuration: .init(serviceInfo: .mock))
 
         self.appId = appId
         self.keyTopic = "mocked"
         self.decoding = T.self
-        self.appearance = appearance
         self.messageTriggers = messageTriggers
-        self.presentingEffect = effect
         self.isDebugSession = { false }
         self.mocked = mocked
+        self.viewProvider = viewProvider
 
         Task { await startListeningOnEvents() }
     }
@@ -100,11 +94,10 @@ public actor RemoteConfigNotifier {
     public static func mocked<T: RemoteMessage>(
         _ mocked: T,
         appId: String = "",
-        appearance: RemoteMessageAppearance = .default,
-        effect: PresentingEffect = .blur(style: .systemThickMaterialDark),
-        messageTriggers: Set<MessageTrigger> = Set(MessageTrigger.allCases)
+        messageTriggers: Set<MessageTrigger> = Set(MessageTrigger.allCases),
+        viewProvider: any RemoteMessageViewProvider
     ) throws -> RemoteConfigNotifier? {
-        try RemoteConfigNotifier(mocked: mocked, appId: appId, appearance: appearance, effect: effect, messageTriggers: messageTriggers)
+        try RemoteConfigNotifier(mocked: mocked, appId: appId, messageTriggers: messageTriggers, viewProvider: viewProvider)
     }
 
 }
@@ -172,18 +165,24 @@ private extension RemoteConfigNotifier {
             }
 
             Task { @MainActor in
-                let currentAppearance = await appearance
-                let controller = UIHostingController(
-                    rootView: RemoteMessageView(
-                        localizedMessage: localizedMessage,
-                        appId: appId,
-                        appearance: currentAppearance
-                    )
+                let model = RemoteMessageViewProviderModel(
+                    appId: appId,
+                    localizedMessage: localizedMessage,
+                    openInAppStore: { self.openAppStore() },
+                    close: { WindowManager.shared.closeNewWindow() }
                 )
+                let controller = UIHostingController<AnyView>(rootView: viewProvider.makeView(model: model))
                 controller.view.backgroundColor = .clear
 
-                WindowManager.shared.showNewWindow(presenting: controller, effect: presentingEffect)
+                WindowManager.shared.showNewWindow(presenting: controller)
             }
+        }
+    }
+
+    @MainActor
+    func openAppStore() {
+        if let url = URL(string: "https://apps.apple.com/app/id\(appId)") {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
         }
     }
 
@@ -223,14 +222,3 @@ private extension RemoteConfigNotifier {
     }
 
 }
-
-// MARK: - Dynamic Appearance setup
-
-extension RemoteConfigNotifier {
-
-    public func updateAppearance(_ appearance: RemoteMessageAppearance) {
-        self.appearance = appearance
-    }
-
-}
-

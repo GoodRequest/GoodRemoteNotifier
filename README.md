@@ -8,7 +8,7 @@ GoodRemoteNotifier is a Swift package that lets you display remote, localized no
 
 - 🔄 Fetches message data from Firebase Remote Config using your topic key
 - 🌐 Multi-language support: All text fields can be localized
-- 🎨 Customizable UI: Control look, feel, and background effect
+- 🎨 Customizable UI via your own SwiftUI view using `RemoteMessageViewProvider`
 - 🕒 Frequency options: Show messages once, daily, weekly, monthly, or always
 - 🔍 Debug/mocked mode for instant testing during development
 - 🧩 Extensible: Use your own model by conforming to `RemoteMessage`
@@ -21,7 +21,7 @@ GoodRemoteNotifier is a Swift package that lets you display remote, localized no
 Add GoodRemoteNotifier via Swift Package Manager:
 
 ```swift
-.dependencies = [
+dependencies = [
     .package(url: "https://github.com/yourusername/GoodRemoteNotifier.git", from: "1.0.0")
 ]
 ```
@@ -53,8 +53,8 @@ struct YourApp: App {
     init() {
         notifier = try? RemoteConfigNotifier.mocked(
             MockedRemoteMessage.sample,                    // any `RemoteMessage`
-            appearance: .default,                          // or custom appearance
-            messageTriggers: [.appForegroundEntry]         // when to check/present
+            messageTriggers: [.appForegroundEntry],        // when to check/present
+            viewProvider: ViewProvider()                   // your SwiftUI view provider
         )
     }
 
@@ -63,9 +63,10 @@ struct YourApp: App {
 ```
 
 Use the sample implementation at `GoodRemoteNotifier-Sample/GoodRemoteNotifier-Sample/Models/MockedRemoteMessage.swift` as a reference.
+Also see `GoodRemoteNotifier-Sample/GoodRemoteNotifier-Sample/Application/Views/ViewProvider.swift` and `GoodRemoteNotifier-Sample/GoodRemoteNotifier-Sample/Application/Views/RemoteMessageView.swift` for a simple custom UI.
 
 ### 2) Production (Firebase Remote Config)
-Provide your App Store ID, topic (Remote Config parameter name), configuration, and your model type.
+Provide your App Store ID, topic (Remote Config parameter name), configuration, your model type, and a view provider.
 
 ```swift
 import GoodRemoteNotifier
@@ -81,10 +82,9 @@ struct YourApp: App {
             remoteConfiguration: .init(serviceInfo: .load(),          // requires GoogleService-Info.plist
                                         fetchInterval: 43_200),      // optional throttling (seconds)
             decoding: YourRemoteMessage.self,                         // your `RemoteMessage` type
-            appearance: .default,                                     // or custom appearance
             messageTriggers: [.appStart, .appForegroundEntry],        // when to fetch/present
-            presentingEffect: .blur(style: .systemThickMaterialDark), // overlay background effect
-            isDebugSession: { false }                                 // set { true } to bypass frequency cache
+            isDebugSession: { false },                                // set { true } to bypass frequency cache
+            viewProvider: ViewProvider()                              // your SwiftUI view provider
         )
     }
 
@@ -119,37 +119,33 @@ The notifier observes these and fetches/presents accordingly. Implementation: `S
 
 ---
 
-## Appearance customization
-Style the overlay with `RemoteMessageAppearance` and button styles with `RemoteMessageButtonAppearance`.
+## View customization
+Provide your own SwiftUI view via a type conforming to `RemoteMessageViewProvider`.
 
+- Implement `makeView(model:)` and return any SwiftUI view wrapped in `AnyView`.
+- Use `RemoteMessageViewProviderModel` data: `appId`, `localizedMessage`, `openInAppStore()`, `close()`.
+
+Example:
 ```swift
-let appearance = RemoteMessageAppearance(
-    appLogoSize: 46,
-    titleFont: .system(size: 20, weight: .bold),
-    titleColor: .black,
-    messageFont: .footnote,
-    messageColor: .black.opacity(0.8),
-    backgroundColor: .white,
-    primaryButtonStyle: .primary,
-    secondaryButtonStyle: .secondary,
-    cornerRadius: 16,
-    contentAlignment: .leading
-)
+import GoodRemoteNotifier
+import SwiftUI
 
-notifier?.updateAppearance(appearance)
+struct ViewProvider: RemoteMessageViewProvider {
+    @MainActor
+    func makeView(model: RemoteMessageViewProviderModel) -> AnyView {
+        AnyView(YourCustomMessageView(model: model))
+    }
+}
 ```
-
-The default view is `Sources/GoodRemoteNotifier/Views/RemoteMessageView.swift`. It supports showing:
-- App icon (optional)
-- Title and message
-- Update button (opens App Store using `appId`)
-- Close button
+See sample UI in:
+- `GoodRemoteNotifier-Sample/GoodRemoteNotifier-Sample/Application/Views/ViewProvider.swift`
+- `GoodRemoteNotifier-Sample/GoodRemoteNotifier-Sample/Application/Views/RemoteMessageView.swift`
 
 ---
 
 ## Debug and testing
 - Use `RemoteConfigNotifier.mocked(...)` for rapid iteration without Firebase.
-- Pass `isDebugSession: { true }` to bypass frequency caching so the message can reappear.
+- In production setup, pass `isDebugSession: { true }` to bypass frequency caching so the message can reappear.
 - Frequency logic is handled by `MessageManager` via `UserDefaults` in `Sources/GoodRemoteNotifier/Managers/MessageManager.swift`.
 
 ---
