@@ -35,10 +35,7 @@ extension View {
         if #available(iOS 15.0, *) {
             self.overlay(alignment: alignment, content: content)
         } else {
-            ZStack(alignment: alignment) {
-                self
-                content()
-            }
+            self.overlay(content(), alignment: alignment)
         }
     }
 
